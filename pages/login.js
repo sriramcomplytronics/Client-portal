@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
 import { supabase } from '../lib/supabaseClient';
-import bcrypt from 'bcryptjs';  // <-- import bcryptjs
+import bcrypt from 'bcryptjs';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
@@ -13,7 +13,6 @@ export default function LoginPage() {
     e.preventDefault();
     setErrorMsg('');
 
-    // Fetch user by username only
     const { data, error } = await supabase
       .from('companies')
       .select('*')
@@ -25,7 +24,6 @@ export default function LoginPage() {
       return;
     }
 
-    // Compare entered password with hashed password from DB
     const isPasswordCorrect = bcrypt.compareSync(password, data.password);
 
     if (!isPasswordCorrect) {
@@ -33,7 +31,6 @@ export default function LoginPage() {
       return;
     }
 
-    // Successful login
     localStorage.setItem('company_session', JSON.stringify(data));
     router.push("/");
   };
