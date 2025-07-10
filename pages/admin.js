@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { supabase } from "../lib/supabaseClient";
+import bcrypt from "bcryptjs";  // Import bcryptjs
 
 export default function AdminPanel() {
   const [form, setForm] = useState({ username: "", password: "", company_name: "" });
   const [message, setMessage] = useState("");
   const [users, setUsers] = useState([]);
-  const ADMIN_PASSWORD_HASH = "$2b$10$kK2ZZj3u14h6/9osfl/FFOD6toaRolC8vjZVkSzRjEpko7sx5Bp3m";
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -16,7 +16,18 @@ export default function AdminPanel() {
       setMessage("All fields are required.");
       return;
     }
-    const { data, error } = await supabase.from("companies").insert([form]);
+
+    // Hash password before sending to DB
+    const hashedPassword = bcrypt.hashSync(form.password, 10);
+
+    const userToInsert = {
+      username: form.username,
+      company_name: form.company_name,
+      password: hashedPassword,
+    };
+
+    const { data, error } = await supabase.from("companies").insert([userToInsert]);
+
     if (error) {
       setMessage("❌ Failed to add user: " + error.message);
     } else {
