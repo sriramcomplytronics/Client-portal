@@ -65,4 +65,51 @@ export default function LoginPage() {
   );
 }
 
-// ... your styles remain unchanged
+const styles = {
+  container: {
+    minHeight: '100vh',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f0f6ff',
+    fontFamily: 'Segoe UI, sans-serif',
+  },
+  form: {
+    background: '#fff',
+    padding: 30,
+    borderRadius: 10,
+    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+    display: 'flex',
+    flexDirection: 'column',
+    width: 300,
+  },
+  input: {
+    padding: 10,
+    marginBottom: 15,
+    border: '1px solid #ccc',
+    borderRadius: 6,
+    fontSize: 16,
+  },
+  button: {
+    padding: 10,
+    backgroundColor: '#007bff',
+    color: '#fff',
+    fontWeight: 600,
+    border: 'none',
+    borderRadius: 6,
+    cursor: 'pointer',
+  },
+  error: {
+    marginTop: 10,
+    color: 'red',
+    fontWeight: 500,
+  },
+  title: {
+    position: 'absolute',
+    top: 60,
+    width: '100%',
+    textAlign: 'center',
+    fontSize: '1.8rem',
+    color: '#002b45',
+  },
+};
