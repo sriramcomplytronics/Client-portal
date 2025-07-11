@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 import bcrypt from "bcryptjs";
 
-const ADMIN_PASSWORD_HASH = "$2b$10$kK2ZZj3u14h6/9osfl/FFOD6toaRolC8vjZVkSzRjEpko7sx5Bp3m"; // Replace with real hash
+const ADMIN_PASSWORD_HASH = "$2b$10$sYmIxfDKpLGhnjRkQRCfOO1QUMOZVBl5BzZ2Jko30uRy7tSlKzUEG";
 
 export default function AdminPanel() {
   const [adminAuthenticated, setAdminAuthenticated] = useState(false);
