@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
-import bcrypt from "bcryptjs";
 
-const ADMIN_PASSWORD_HASH = "$2b$10$sYmIxfDKpLGhnjRkQRCfOO1QUMOZVBl5BzZ2Jko30uRy7tSlKzUEG";
+// Plain text admin password
+const ADMIN_PASSWORD = "admin123";
 
 export default function AdminPanel() {
   const [adminAuthenticated, setAdminAuthenticated] = useState(false);
@@ -14,20 +14,16 @@ export default function AdminPanel() {
   const [editingUserId, setEditingUserId] = useState(null);
 
   const handleAdminLogin = () => {
-  const trimmedPassword = adminPassword.trim();
-  const isMatch = bcrypt.compareSync(trimmedPassword, ADMIN_PASSWORD_HASH);
-  console.log("Entered password (trimmed):", JSON.stringify(trimmedPassword));
-  console.log("Expected hash:", ADMIN_PASSWORD_HASH);
-  console.log("Password match result:", isMatch);
+    const trimmedPassword = adminPassword.trim();
+    const isMatch = trimmedPassword === ADMIN_PASSWORD;
 
-  if (isMatch) {
-    setAdminAuthenticated(true);
-    fetchUsers();
-  } else {
-    alert("Incorrect admin password.");
-  }
-};
-
+    if (isMatch) {
+      setAdminAuthenticated(true);
+      fetchUsers();
+    } else {
+      alert("Incorrect admin password.");
+    }
+  };
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -39,11 +35,10 @@ export default function AdminPanel() {
       return;
     }
 
-    const hashedPassword = bcrypt.hashSync(form.password, 10);
     const newUser = {
       username: form.username,
       company_name: form.company_name,
-      password: hashedPassword,
+      password: form.password, // plain text
     };
 
     const { error } = await supabase.from("companies").insert([newUser]);
@@ -91,7 +86,7 @@ export default function AdminPanel() {
     };
 
     if (form.password.trim() !== "") {
-      updateData.password = bcrypt.hashSync(form.password, 10);
+      updateData.password = form.password; // plain text
     }
 
     const { error } = await supabase.from("companies").update(updateData).eq("id", editingUserId);
