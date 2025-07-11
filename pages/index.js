@@ -64,13 +64,30 @@ export default function Home() {
     setUploadingIndex(idx);
     setMessage("");
 
-    const fileName = `${company.username}/${Date.now()}_${file.name}`;
-    const { error } = await supabase.storage
-      .from("documents")
-      .upload(fileName, file);
+    const folder = company.username;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const filePath = `${folder}/${docs[idx].name}_${timestamp}_${file.name}`;
 
-    if (error) {
-      setMessage(`❌ Upload failed for ${docs[idx].name}: ${error.message}`);
+    const { error: uploadError } = await supabase.storage
+      .from("documents")
+      .upload(filePath, file);
+
+    if (uploadError) {
+      setMessage(`❌ Upload failed for ${docs[idx].name}: ${uploadError.message}`);
+      setUploadingIndex(null);
+      return;
+    }
+
+    const { error: insertError } = await supabase.from("uploaded_documents").insert([
+      {
+        company_username: company.username,
+        document_name: docs[idx].name,
+        file_path: filePath,
+      },
+    ]);
+
+    if (insertError) {
+      setMessage(`⚠️ File uploaded, but metadata logging failed: ${insertError.message}`);
     } else {
       setMessage(`✅ Upload successful for ${docs[idx].name}`);
       setDocs((prev) =>
@@ -87,15 +104,20 @@ export default function Home() {
   async function fetchAdminFiles() {
     if (!company.username) return;
 
-    const { data, error } = await supabase.storage.from("documents").list(company.username);
+    const { data, error } = await supabase
+      .from("uploaded_documents")
+      .select("file_path, document_name, uploaded_at")
+      .eq("company_username", company.username)
+      .order("uploaded_at", { ascending: false });
+
     if (!error && data) {
       const urls = await Promise.all(
-        data.map(async (file) => {
+        data.map(async (entry) => {
           const { data: signedUrl } = await supabase.storage
             .from("documents")
-            .createSignedUrl(`${company.username}/${file.name}`, 60 * 60);
+            .createSignedUrl(entry.file_path, 60 * 60);
           return {
-            name: file.name,
+            ...entry,
             url: signedUrl?.signedUrl,
           };
         })
@@ -114,7 +136,9 @@ export default function Home() {
         <h1>Complytronics Document Portal</h1>
         <p style={styles.subtitle}>Secure Upload & Admin Download Panel</p>
         {company.username && (
-          <p style={styles.loggedIn}>Logged in as: <strong>{company.company_name || company.username}</strong></p>
+          <p style={styles.loggedIn}>
+            Logged in as: <strong>{company.company_name || company.username}</strong>
+          </p>
         )}
       </header>
 
@@ -171,15 +195,16 @@ export default function Home() {
       </section>
 
       <section style={styles.card}>
-        <h2 style={styles.sectionTitle}>Your Uploaded Files</h2>
+        <h2 style={styles.sectionTitle}>Document Upload History</h2>
         {adminFiles.length === 0 ? (
-          <p>No files uploaded yet.</p>
+          <p>No documents uploaded yet.</p>
         ) : (
           <ul style={styles.fileList}>
             {adminFiles.map((file, i) => (
               <li key={i}>
+                <strong>{file.document_name}</strong> – Uploaded: {new Date(file.uploaded_at).toLocaleString()}<br />
                 <a href={file.url} target="_blank" rel="noopener noreferrer">
-                  {file.name}
+                  {file.file_path.split("/").pop()}
                 </a>
               </li>
             ))}
