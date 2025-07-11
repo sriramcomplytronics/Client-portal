@@ -1,3 +1,4 @@
+// index.js
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { supabase } from "../lib/supabaseClient";
@@ -31,15 +32,21 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const session = localStorage.getItem("company_session");
-      if (!session) {
-        router.push("/login");
-      } else {
-        setCompany(JSON.parse(session));
-      }
+    const session = localStorage.getItem("company_session");
+    if (!session) {
+      router.push("/login");
+    } else {
+      const parsed = JSON.parse(session);
+      setCompany(parsed);
     }
   }, []);
+
+  useEffect(() => {
+    if (company.username) {
+      fetchAdminFiles();
+      loadUploadedDocs();
+    }
+  }, [company]);
 
   function toggleCheck(idx) {
     setDocs((prev) =>
@@ -49,7 +56,6 @@ export default function Home() {
               ...doc,
               checked: !doc.checked,
               file: !doc.checked ? doc.file : null,
-              status: !doc.checked ? doc.status : "No document",
             }
           : doc
       )
@@ -64,60 +70,43 @@ export default function Home() {
     setUploadingIndex(idx);
     setMessage("");
 
-    const folder = company.username;
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const filePath = `${folder}/${docs[idx].name}_${timestamp}_${file.name}`;
-
+    const fileName = `${company.username}/${Date.now()}_${file.name}`;
     const { error: uploadError } = await supabase.storage
       .from("documents")
-      .upload(filePath, file);
+      .upload(fileName, file);
 
     if (uploadError) {
       setMessage(`❌ Upload failed for ${docs[idx].name}: ${uploadError.message}`);
-      setUploadingIndex(null);
-      return;
-    }
-
-    const { error: insertError } = await supabase.from("uploaded_documents").insert([
-      {
-        company_username: company.username,
-        document_name: docs[idx].name,
-        file_path: filePath,
-      },
-    ]);
-
-    if (insertError) {
-      setMessage(`⚠️ File uploaded, but metadata logging failed: ${insertError.message}`);
     } else {
-      setMessage(`✅ Upload successful for ${docs[idx].name}`);
+      await supabase.from("uploaded_documents").upsert({
+        company_username: company.username,
+        doc_type: docs[idx].name,
+        file_name: fileName,
+        uploaded_at: new Date(),
+      });
+
       setDocs((prev) =>
         prev.map((doc, i) =>
           i === idx ? { ...doc, file, status: "Document received" } : doc
         )
       );
+      setMessage(`✅ Upload successful for ${docs[idx].name}`);
+      fetchAdminFiles();
     }
 
     setUploadingIndex(null);
-    fetchAdminFiles();
   }
 
   async function fetchAdminFiles() {
-    if (!company.username) return;
-
-    const { data, error } = await supabase
-      .from("uploaded_documents")
-      .select("file_path, document_name, uploaded_at")
-      .eq("company_username", company.username)
-      .order("uploaded_at", { ascending: false });
-
+    const { data, error } = await supabase.storage.from("documents").list(company.username);
     if (!error && data) {
       const urls = await Promise.all(
-        data.map(async (entry) => {
+        data.map(async (file) => {
           const { data: signedUrl } = await supabase.storage
             .from("documents")
-            .createSignedUrl(entry.file_path, 60 * 60);
+            .createSignedUrl(`${company.username}/${file.name}`, 60 * 60);
           return {
-            ...entry,
+            name: file.name,
             url: signedUrl?.signedUrl,
           };
         })
@@ -126,9 +115,23 @@ export default function Home() {
     }
   }
 
-  useEffect(() => {
-    if (company.username) fetchAdminFiles();
-  }, [company]);
+  async function loadUploadedDocs() {
+    const { data, error } = await supabase
+      .from("uploaded_documents")
+      .select("doc_type, file_name")
+      .eq("company_username", company.username);
+
+    if (data) {
+      setDocs((prevDocs) =>
+        prevDocs.map((doc) => {
+          const match = data.find((d) => d.doc_type === doc.name);
+          return match
+            ? { ...doc, status: "Document received", checked: true }
+            : doc;
+        })
+      );
+    }
+  }
 
   return (
     <div style={styles.wrapper}>
@@ -148,15 +151,11 @@ export default function Home() {
           <div key={idx} style={styles.docRow}>
             <input
               type="checkbox"
-              id={`check-${idx}`}
               checked={checked}
               onChange={() => toggleCheck(idx)}
               style={styles.checkbox}
             />
-            <label htmlFor={`check-${idx}`} style={styles.label}>
-              {name}
-            </label>
-
+            <label style={styles.label}>{name}</label>
             {checked && (
               <>
                 <input
@@ -178,7 +177,6 @@ export default function Home() {
                 </button>
               </>
             )}
-
             <span
               style={{
                 ...styles.status,
@@ -190,21 +188,19 @@ export default function Home() {
             </span>
           </div>
         ))}
-
         {message && <p style={styles.message}>{message}</p>}
       </section>
 
       <section style={styles.card}>
-        <h2 style={styles.sectionTitle}>Document Upload History</h2>
+        <h2 style={styles.sectionTitle}>Your Uploaded Files</h2>
         {adminFiles.length === 0 ? (
-          <p>No documents uploaded yet.</p>
+          <p>No files uploaded yet.</p>
         ) : (
           <ul style={styles.fileList}>
             {adminFiles.map((file, i) => (
               <li key={i}>
-                <strong>{file.document_name}</strong> – Uploaded: {new Date(file.uploaded_at).toLocaleString()}<br />
                 <a href={file.url} target="_blank" rel="noopener noreferrer">
-                  {file.file_path.split("/").pop()}
+                  {file.name}
                 </a>
               </li>
             ))}
