@@ -14,8 +14,9 @@ export default function AdminPanel() {
   const [editingUserId, setEditingUserId] = useState(null);
 
   const handleAdminLogin = () => {
-  const isMatch = bcrypt.compareSync(adminPassword, ADMIN_PASSWORD_HASH);
-  console.log("Entered password:", adminPassword);
+  const trimmedPassword = adminPassword.trim();
+  const isMatch = bcrypt.compareSync(trimmedPassword, ADMIN_PASSWORD_HASH);
+  console.log("Entered password (trimmed):", JSON.stringify(trimmedPassword));
   console.log("Expected hash:", ADMIN_PASSWORD_HASH);
   console.log("Password match result:", isMatch);
 
