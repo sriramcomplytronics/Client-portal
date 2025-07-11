@@ -22,6 +22,8 @@ export default function Home() {
       name,
       checked: false,
       file: null,
+      fileName: null,
+      uploadedId: null,
       status: "No document",
     }))
   );
@@ -29,6 +31,7 @@ export default function Home() {
   const [message, setMessage] = useState("");
   const [adminFiles, setAdminFiles] = useState([]);
   const [company, setCompany] = useState({});
+  const [allSubmitted, setAllSubmitted] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -44,7 +47,6 @@ export default function Home() {
   useEffect(() => {
     if (company.username) {
       fetchAdminFiles();
-      loadUploadedDocs();
     }
   }, [company]);
 
@@ -56,6 +58,7 @@ export default function Home() {
               ...doc,
               checked: !doc.checked,
               file: !doc.checked ? doc.file : null,
+              status: !doc.checked && doc.fileName ? "Document received" : "No document",
             }
           : doc
       )
@@ -78,16 +81,18 @@ export default function Home() {
     if (uploadError) {
       setMessage(`❌ Upload failed for ${docs[idx].name}: ${uploadError.message}`);
     } else {
-      await supabase.from("uploaded_documents").upsert({
+      const { data: upserted, error } = await supabase.from("uploaded_documents").upsert({
         company_username: company.username,
         doc_type: docs[idx].name,
         file_name: fileName,
         uploaded_at: new Date(),
-      });
+      }).select();
+
+      const uploadedId = upserted?.[0]?.id;
 
       setDocs((prev) =>
         prev.map((doc, i) =>
-          i === idx ? { ...doc, file, status: "Document received" } : doc
+          i === idx ? { ...doc, file, status: "Document received", fileName, uploadedId, checked: true } : doc
         )
       );
       setMessage(`✅ Upload successful for ${docs[idx].name}`);
@@ -97,39 +102,78 @@ export default function Home() {
     setUploadingIndex(null);
   }
 
+  async function deleteDocument(idx) {
+    const doc = docs[idx];
+    if (!doc.fileName || !doc.uploadedId) return;
+
+    const { error: storageErr } = await supabase.storage
+      .from("documents")
+      .remove([`${doc.fileName}`]);
+
+    const { error: dbErr } = await supabase
+      .from("uploaded_documents")
+      .delete()
+      .eq("id", doc.uploadedId);
+
+    if (!storageErr && !dbErr) {
+      setMessage(`🗑 Deleted ${doc.name}`);
+      const updated = docs.map((d, i) =>
+        i === idx
+          ? { ...d, checked: false, fileName: null, uploadedId: null, status: "No document" }
+          : d
+      );
+      setDocs(updated);
+      setAllSubmitted(updated.every((doc) => doc.status === "Document received"));
+    } else {
+      setMessage("❌ Deletion failed.");
+    }
+  }
+
   async function fetchAdminFiles() {
-    const { data, error } = await supabase.storage.from("documents").list(company.username);
+    const { data, error } = await supabase
+      .from("uploaded_documents")
+      .select("id, file_name, doc_type")
+      .eq("company_username", company.username);
+
     if (!error && data) {
       const urls = await Promise.all(
         data.map(async (file) => {
           const { data: signedUrl } = await supabase.storage
             .from("documents")
-            .createSignedUrl(`${company.username}/${file.name}`, 60 * 60);
+            .createSignedUrl(file.file_name, 60 * 60);
           return {
-            name: file.name,
+            id: file.id,
+            name: file.file_name,
+            type: file.doc_type,
             url: signedUrl?.signedUrl,
           };
         })
       );
       setAdminFiles(urls);
-    }
-  }
 
-  async function loadUploadedDocs() {
-    const { data, error } = await supabase
-      .from("uploaded_documents")
-      .select("doc_type, file_name")
-      .eq("company_username", company.username);
+      const updatedDocs = docList.map((name) => {
+        const match = urls.find((u) => u.type === name);
+        return match
+          ? {
+              name,
+              checked: true,
+              file: null,
+              status: "Document received",
+              fileName: match.name,
+              uploadedId: match.id,
+            }
+          : {
+              name,
+              checked: false,
+              file: null,
+              status: "No document",
+              fileName: null,
+              uploadedId: null,
+            };
+      });
 
-    if (data) {
-      setDocs((prevDocs) =>
-        prevDocs.map((doc) => {
-          const match = data.find((d) => d.doc_type === doc.name);
-          return match
-            ? { ...doc, status: "Document received", checked: true }
-            : doc;
-        })
-      );
+      setDocs(updatedDocs);
+      setAllSubmitted(updatedDocs.every((doc) => doc.status === "Document received"));
     }
   }
 
@@ -175,6 +219,11 @@ export default function Home() {
                 >
                   {uploadingIndex === idx ? "Uploading..." : "Upload File"}
                 </button>
+                {docs[idx].status === "Document received" && (
+                  <button onClick={() => deleteDocument(idx)} style={styles.deleteBtn}>
+                    🗑 Delete
+                  </button>
+                )}
               </>
             )}
             <span
@@ -188,6 +237,11 @@ export default function Home() {
             </span>
           </div>
         ))}
+        {allSubmitted && (
+          <div style={styles.successBanner}>
+            ✅ All required documents have been uploaded!
+          </div>
+        )}
         {message && <p style={styles.message}>{message}</p>}
       </section>
 
@@ -275,11 +329,29 @@ const styles = {
     backgroundColor: "#999",
     cursor: "not-allowed",
   },
+  deleteBtn: {
+    marginLeft: 10,
+    padding: "6px 10px",
+    backgroundColor: "#dc3545",
+    color: "white",
+    border: "none",
+    borderRadius: 6,
+    cursor: "pointer",
+  },
   status: {
     padding: "4px 10px",
     borderRadius: 15,
     color: "#fff",
     fontSize: "0.85rem",
+  },
+  successBanner: {
+    marginTop: 20,
+    padding: "12px 20px",
+    backgroundColor: "#d4edda",
+    color: "#155724",
+    borderRadius: 6,
+    fontWeight: 600,
+    textAlign: "center",
   },
   message: {
     marginTop: 15,
