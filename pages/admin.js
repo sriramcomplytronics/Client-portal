@@ -1,11 +1,26 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
-import bcrypt from "bcryptjs";  // Import bcryptjs
+import bcrypt from "bcryptjs";
+
+const ADMIN_PASSWORD_HASH = "$2b$10$kK2ZZj3u14h6/9osfl/FFOD6toaRolC8vjZVkSzRjEpko7sx5Bp3m"; // Replace with real hash
 
 export default function AdminPanel() {
+  const [adminAuthenticated, setAdminAuthenticated] = useState(false);
+  const [adminPassword, setAdminPassword] = useState("");
   const [form, setForm] = useState({ username: "", password: "", company_name: "" });
+  const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
   const [users, setUsers] = useState([]);
+  const [editingUserId, setEditingUserId] = useState(null);
+
+  const handleAdminLogin = () => {
+    if (bcrypt.compareSync(adminPassword, ADMIN_PASSWORD_HASH)) {
+      setAdminAuthenticated(true);
+      fetchUsers();
+    } else {
+      alert("Incorrect admin password.");
+    }
+  };
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -17,16 +32,14 @@ export default function AdminPanel() {
       return;
     }
 
-    // Hash password before sending to DB
     const hashedPassword = bcrypt.hashSync(form.password, 10);
-
-    const userToInsert = {
+    const newUser = {
       username: form.username,
       company_name: form.company_name,
       password: hashedPassword,
     };
 
-    const { data, error } = await supabase.from("companies").insert([userToInsert]);
+    const { error } = await supabase.from("companies").insert([newUser]);
 
     if (error) {
       setMessage("❌ Failed to add user: " + error.message);
@@ -38,7 +51,10 @@ export default function AdminPanel() {
   };
 
   const fetchUsers = async () => {
-    const { data, error } = await supabase.from("companies").select("id, username, company_name");
+    const { data, error } = await supabase
+      .from("companies")
+      .select("id, username, company_name, created_at");
+
     if (!error) {
       setUsers(data);
     }
@@ -52,10 +68,57 @@ export default function AdminPanel() {
     }
   };
 
-  // Fetch users on component mount
-  useState(() => {
-    fetchUsers();
-  }, []);
+  const startEditing = (user) => {
+    setEditingUserId(user.id);
+    setForm({
+      username: user.username,
+      company_name: user.company_name,
+      password: "",
+    });
+  };
+
+  const updateUser = async () => {
+    const updateData = {
+      username: form.username,
+      company_name: form.company_name,
+    };
+
+    if (form.password.trim() !== "") {
+      updateData.password = bcrypt.hashSync(form.password, 10);
+    }
+
+    const { error } = await supabase.from("companies").update(updateData).eq("id", editingUserId);
+
+    if (!error) {
+      setMessage("✅ User updated.");
+      setForm({ username: "", password: "", company_name: "" });
+      setEditingUserId(null);
+      fetchUsers();
+    } else {
+      setMessage("❌ Failed to update: " + error.message);
+    }
+  };
+
+  const filteredUsers = users.filter((user) =>
+    user.username.toLowerCase().includes(search.toLowerCase()) ||
+    user.company_name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  if (!adminAuthenticated) {
+    return (
+      <div style={styles.container}>
+        <h2>Admin Login</h2>
+        <input
+          type="password"
+          placeholder="Enter Admin Password"
+          value={adminPassword}
+          onChange={(e) => setAdminPassword(e.target.value)}
+          style={styles.input}
+        />
+        <button onClick={handleAdminLogin} style={styles.button}>Login</button>
+      </div>
+    );
+  }
 
   return (
     <div style={styles.container}>
@@ -81,22 +144,38 @@ export default function AdminPanel() {
         <input
           type="password"
           name="password"
-          placeholder="Password"
+          placeholder={editingUserId ? "New Password (optional)" : "Password"}
           value={form.password}
           onChange={handleChange}
           style={styles.input}
         />
-        <button onClick={addUser} style={styles.button}>Add User</button>
+        <button onClick={editingUserId ? updateUser : addUser} style={styles.button}>
+          {editingUserId ? "Update User" : "Add User"}
+        </button>
       </div>
+
+      <input
+        type="text"
+        placeholder="Search companies..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        style={styles.input}
+      />
 
       {message && <p style={styles.message}>{message}</p>}
 
       <h2>Registered Companies</h2>
       <ul style={styles.userList}>
-        {users.map((user) => (
+        {filteredUsers.map((user) => (
           <li key={user.id} style={styles.userItem}>
-            <strong>{user.company_name}</strong> ({user.username})
-            <button onClick={() => deleteUser(user.id)} style={styles.deleteBtn}>❌</button>
+            <div>
+              <strong>{user.company_name}</strong> ({user.username})<br />
+              <small>Created at: {new Date(user.created_at).toLocaleString()}</small>
+            </div>
+            <div>
+              <button onClick={() => startEditing(user)} style={styles.editBtn}>✏️</button>
+              <button onClick={() => deleteUser(user.id)} style={styles.deleteBtn}>❌</button>
+            </div>
           </li>
         ))}
       </ul>
@@ -106,7 +185,7 @@ export default function AdminPanel() {
 
 const styles = {
   container: {
-    maxWidth: 600,
+    maxWidth: 700,
     margin: "50px auto",
     padding: 30,
     backgroundColor: "#fff",
@@ -147,15 +226,24 @@ const styles = {
   userItem: {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     padding: "8px 0",
     borderBottom: "1px solid #eee",
   },
-  deleteBtn: {
-    background: "none",
+  editBtn: {
+    marginRight: 10,
+    backgroundColor: "#ffc107",
     border: "none",
-    color: "#f44336",
+    padding: "6px 10px",
+    borderRadius: 4,
     cursor: "pointer",
-    fontSize: "1.1rem",
+  },
+  deleteBtn: {
+    background: "#f44336",
+    border: "none",
+    padding: "6px 10px",
+    borderRadius: 4,
+    color: "white",
+    cursor: "pointer",
   },
 };
