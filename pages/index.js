@@ -116,13 +116,13 @@ export default function Home() {
       .eq("id", doc.uploadedId);
 
     if (!storageErr && !dbErr) {
-      setMessage(`🗑 Deleted ${doc.name}`);
       const updated = docs.map((d, i) =>
         i === idx
           ? { ...d, checked: false, fileName: null, uploadedId: null, status: "No document" }
           : d
       );
       setDocs(updated);
+      setMessage(`🗑 Deleted ${doc.name}`);
       setAllSubmitted(updated.every((doc) => doc.status === "Document received"));
     } else {
       setMessage("❌ Deletion failed.");
@@ -219,7 +219,7 @@ export default function Home() {
                 >
                   {uploadingIndex === idx ? "Uploading..." : "Upload File"}
                 </button>
-                {docs[idx].status === "Document received" && (
+                {status === "Document received" && (
                   <button onClick={() => deleteDocument(idx)} style={styles.deleteBtn}>
                     🗑 Delete
                   </button>
