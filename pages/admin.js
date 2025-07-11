@@ -14,13 +14,19 @@ export default function AdminPanel() {
   const [editingUserId, setEditingUserId] = useState(null);
 
   const handleAdminLogin = () => {
-    if (bcrypt.compareSync(adminPassword, ADMIN_PASSWORD_HASH)) {
-      setAdminAuthenticated(true);
-      fetchUsers();
-    } else {
-      alert("Incorrect admin password.");
-    }
-  };
+  const isMatch = bcrypt.compareSync(adminPassword, ADMIN_PASSWORD_HASH);
+  console.log("Entered password:", adminPassword);
+  console.log("Expected hash:", ADMIN_PASSWORD_HASH);
+  console.log("Password match result:", isMatch);
+
+  if (isMatch) {
+    setAdminAuthenticated(true);
+    fetchUsers();
+  } else {
+    alert("Incorrect admin password.");
+  }
+};
+
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
