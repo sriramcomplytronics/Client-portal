@@ -103,31 +103,45 @@ export default function Home() {
   }
 
   async function deleteDocument(idx) {
-    const doc = docs[idx];
-    if (!doc.fileName || !doc.uploadedId) return;
-
-    const { error: storageErr } = await supabase.storage
-      .from("documents")
-      .remove([doc.fileName]);
-
-    const { error: dbErr } = await supabase
-      .from("uploaded_documents")
-      .delete()
-      .eq("id", doc.uploadedId);
-
-    if (!storageErr && !dbErr) {
-      const updated = docs.map((d, i) =>
-        i === idx
-          ? { ...d, checked: false, fileName: null, uploadedId: null, status: "No document" }
-          : d
-      );
-      setDocs(updated);
-      setMessage(`🗑 Deleted ${doc.name}`);
-      fetchAdminFiles();
-    } else {
-      setMessage("❌ Deletion failed.");
-    }
+  const doc = docs[idx];
+  if (!doc.fileName || !doc.uploadedId) {
+    setMessage("❌ No document to delete.");
+    return;
   }
+
+  // Remove file from Supabase Storage
+  const { error: storageErr } = await supabase.storage
+    .from("documents")
+    .remove([doc.fileName]);
+
+  // Remove file record from Supabase DB
+  const { error: dbErr } = await supabase
+    .from("uploaded_documents")
+    .delete()
+    .eq("id", doc.uploadedId);
+
+  if (!storageErr && !dbErr) {
+    const updated = docs.map((d, i) =>
+      i === idx
+        ? {
+            ...d,
+            checked: false,
+            fileName: null,
+            uploadedId: null,
+            file: null,
+            status: "No document",
+          }
+        : d
+    );
+    setDocs(updated);
+    setMessage(`🗑 Deleted "${doc.name}"`);
+    fetchAdminFiles(); // reload visible files
+  } else {
+    setMessage("❌ Deletion failed.");
+    console.error("Delete Errors:", storageErr, dbErr);
+  }
+}
+
 
   async function fetchAdminFiles() {
     const { data, error } = await supabase
