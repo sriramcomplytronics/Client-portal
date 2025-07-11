@@ -108,7 +108,7 @@ export default function Home() {
 
     const { error: storageErr } = await supabase.storage
       .from("documents")
-      .remove([`${doc.fileName}`]);
+      .remove([doc.fileName]);
 
     const { error: dbErr } = await supabase
       .from("uploaded_documents")
@@ -123,7 +123,7 @@ export default function Home() {
       );
       setDocs(updated);
       setMessage(`🗑 Deleted ${doc.name}`);
-      setAllSubmitted(updated.every((doc) => doc.status === "Document received"));
+      fetchAdminFiles();
     } else {
       setMessage("❌ Deletion failed.");
     }
@@ -220,7 +220,10 @@ export default function Home() {
                   {uploadingIndex === idx ? "Uploading..." : "Upload File"}
                 </button>
                 {status === "Document received" && (
-                  <button onClick={() => deleteDocument(idx)} style={styles.deleteBtn}>
+                  <button
+                    onClick={() => deleteDocument(idx)}
+                    style={styles.deleteBtn}
+                  >
                     🗑 Delete
                   </button>
                 )}
