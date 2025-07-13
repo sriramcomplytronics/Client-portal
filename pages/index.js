@@ -204,7 +204,7 @@ export default function Home() {
 
       setDocs(updatedDocs);
       setAllSubmitted(updatedDocs.every((doc) => doc.status === "Document received"));
-    }
-  }
+    },
+};
 
   // ... rest of the component remains unchanged
