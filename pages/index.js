@@ -107,7 +107,7 @@ export default function Home() {
 
   async function deleteDocument(idx) {
     const doc = docs[idx];
-    if (!doc.fileName || !doc.uploadedId) {
+    if (!doc.fileName && !doc.uploadedId) {
       setMessage("❌ No document to delete.");
       return;
     }
@@ -117,20 +117,15 @@ export default function Home() {
         .from("documents")
         .remove([doc.fileName]);
 
-      if (storageErr) {
-        console.error("Storage delete error:", storageErr);
-        setMessage("❌ Failed to delete from storage.");
-        return;
-      }
-
       const { error: dbErr } = await supabase
         .from("uploaded_documents")
         .delete()
-        .eq("id", doc.uploadedId);
+        .eq("doc_type", doc.name)
+        .eq("company_username", company.username);
 
-      if (dbErr) {
-        console.error("DB delete error:", dbErr);
-        setMessage("❌ Failed to delete from DB.");
+      if (storageErr || dbErr) {
+        console.error("Delete Errors:", storageErr, dbErr);
+        setMessage("❌ Deletion failed.");
         return;
       }
 
