@@ -106,53 +106,49 @@ export default function Home() {
   }
 
   async function deleteDocument(idx) {
-  const doc = docs[idx];
-  if (!doc.fileName) {
-    setMessage("❌ No document to delete.");
-    return;
-  }
-
-  try {
-    // Delete from Supabase Storage
-    const { error: storageErr } = await supabase.storage
-      .from("documents")
-      .remove([doc.fileName]); // fileName already includes folder prefix like "company123/..."
-
-    // Delete from Supabase Database
-    const { error: dbErr } = await supabase
-      .from("uploaded_documents")
-      .delete()
-      .eq("doc_type", doc.name)
-      .eq("company_username", company.username);
-
-    if (storageErr || dbErr) {
-      console.error("Delete Errors:", storageErr, dbErr);
-      setMessage("❌ Deletion failed.");
+    const doc = docs[idx];
+    if (!doc.fileName) {
+      setMessage("❌ No document to delete.");
       return;
     }
 
-    // Update UI state
-    const updated = docs.map((d, i) =>
-      i === idx
-        ? {
-            ...d,
-            checked: false,
-            fileName: null,
-            uploadedId: null,
-            file: null,
-            status: "No document",
-          }
-        : d
-    );
-    setDocs(updated);
-    setMessage(`🗑 Deleted "${doc.name}"`);
-    fetchAdminFiles();
-  } catch (err) {
-    console.error("Unexpected deletion error:", err);
-    setMessage("❌ Unexpected error occurred during deletion.");
-  }
-}
+    try {
+      const { error: storageErr } = await supabase.storage
+        .from("documents")
+        .remove([doc.fileName]);
 
+      const { error: dbErr } = await supabase
+        .from("uploaded_documents")
+        .delete()
+        .eq("doc_type", doc.name)
+        .eq("company_username", company.username);
+
+      if (storageErr || dbErr) {
+        console.error("Delete Errors:", storageErr, dbErr);
+        setMessage("❌ Deletion failed.");
+        return;
+      }
+
+      const updated = docs.map((d, i) =>
+        i === idx
+          ? {
+              ...d,
+              checked: false,
+              fileName: null,
+              uploadedId: null,
+              file: null,
+              status: "No document",
+            }
+          : d
+      );
+      setDocs(updated);
+      setMessage(`🗑 Deleted "${doc.name}"`);
+      fetchAdminFiles();
+    } catch (err) {
+      console.error("Unexpected deletion error:", err);
+      setMessage("❌ Unexpected error occurred during deletion.");
+    }
+  }
 
   async function fetchAdminFiles() {
     const { data, error } = await supabase
