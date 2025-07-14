@@ -184,7 +184,9 @@ export default function Home() {
       });
 
       setDocs(updatedDocs);
-      setAllSubmitted(updatedDocs.every((doc) => doc.status === "Document received"));
+      setAllSubmitted(
+        updatedDocs.every((doc) => doc.status === "Document received")
+      );
     }
   }
 
